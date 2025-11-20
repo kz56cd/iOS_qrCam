@@ -50,7 +50,7 @@ protocol CameraViewControllerDelegate: AnyObject {
     func didFindQRCode(code: String)
 }
 
-class CameraViewController: UIViewController, AVCaptureMetadataOutputObjectsDelegate {
+final class CameraViewController: UIViewController {
     weak var delegate: CameraViewControllerDelegate?
     var captureSession: AVCaptureSession!
     var previewLayer: AVCaptureVideoPreviewLayer!
@@ -113,23 +113,6 @@ class CameraViewController: UIViewController, AVCaptureMetadataOutputObjectsDele
         captureSession = nil
     }
 
-    // AVCaptureMetadataOutputObjectsDelegateの必須メソッド
-    func metadataOutput(_ output: AVCaptureMetadataOutput, didOutput metadataObjects: [AVMetadataObject], from connection: AVCaptureConnection) {
-        // 一度読み取ったら、処理が完了するまで次の読み取りを防ぐ
-        guard !isProcessingCode else { return }
-        
-        if let metadataObject = metadataObjects.first {
-            guard let readableObject = metadataObject as? AVMetadataMachineReadableCodeObject else { return }
-            guard let stringValue = readableObject.stringValue else { return }
-            
-            // 読み取られた値がURLとして有効かチェック（シンプルなチェック）
-            if stringValue.starts(with: "http") {
-                isProcessingCode = true
-                found(code: stringValue)
-            }
-        }
-    }
-
     // QRコードを検出した際に呼ばれる
     func found(code: String) {
         delegate?.didFindQRCode(code: code)
@@ -160,5 +143,23 @@ class CameraViewController: UIViewController, AVCaptureMetadataOutputObjectsDele
 
     override var supportedInterfaceOrientations: UIInterfaceOrientationMask {
         return .portrait
+    }
+}
+
+extension CameraViewController: AVCaptureMetadataOutputObjectsDelegate {
+    func metadataOutput(_ output: AVCaptureMetadataOutput, didOutput metadataObjects: [AVMetadataObject], from connection: AVCaptureConnection) {
+        // 一度読み取ったら、処理が完了するまで次の読み取りを防ぐ
+        guard !isProcessingCode else { return }
+        
+        if let metadataObject = metadataObjects.first {
+            guard let readableObject = metadataObject as? AVMetadataMachineReadableCodeObject else { return }
+            guard let stringValue = readableObject.stringValue else { return }
+            
+            // 読み取られた値がURLとして有効かチェック（シンプルなチェック）
+            if stringValue.starts(with: "http") {
+                isProcessingCode = true
+                found(code: stringValue)
+            }
+        }
     }
 }
