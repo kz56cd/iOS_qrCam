@@ -51,9 +51,9 @@ protocol CameraViewControllerDelegate: AnyObject {
 }
 
 final class CameraViewController: UIViewController {
-    weak var delegate: CameraViewControllerDelegate?
-    var captureSession: AVCaptureSession!
-    var previewLayer: AVCaptureVideoPreviewLayer!
+    fileprivate weak var delegate: CameraViewControllerDelegate?
+    private var captureSession: AVCaptureSession!
+    private var previewLayer: AVCaptureVideoPreviewLayer!
     
     // 読み取り済みのフラグ
     private var isProcessingCode = false
@@ -61,49 +61,8 @@ final class CameraViewController: UIViewController {
     override func viewDidLoad() {
         super.viewDidLoad()
         
-        view.backgroundColor = UIColor.black
-        captureSession = AVCaptureSession()
-
-        // 1. 入力デバイスの設定（背面カメラ）
-        guard let videoCaptureDevice = AVCaptureDevice.default(for: .video) else { return }
-        let videoInput: AVCaptureDeviceInput
-        
-        do {
-            videoInput = try AVCaptureDeviceInput(device: videoCaptureDevice)
-        } catch {
-            print("カメラの入力デバイス設定に失敗しました: \(error)")
-            return
-        }
-
-        if (captureSession.canAddInput(videoInput)) {
-            captureSession.addInput(videoInput)
-        } else {
-            failed()
-            return
-        }
-
-        // 2. 出力の設定（メタデータ出力）
-        let metadataOutput = AVCaptureMetadataOutput()
-
-        if (captureSession.canAddOutput(metadataOutput)) {
-            captureSession.addOutput(metadataOutput)
-
-            metadataOutput.setMetadataObjectsDelegate(self, queue: DispatchQueue.main)
-            // QRコードのみを検出対象に設定
-            metadataOutput.metadataObjectTypes = [.qr]
-        } else {
-            failed()
-            return
-        }
-
-        // 3. プレビューレイヤーの設定
-        previewLayer = AVCaptureVideoPreviewLayer(session: captureSession)
-        previewLayer.frame = view.layer.bounds
-        previewLayer.videoGravity = .resizeAspectFill
-        view.layer.addSublayer(previewLayer)
-        
-        // 4. セッションの開始
-        captureSession.startRunning()
+        view.backgroundColor = .black
+        configureSession()
     }
     
     func failed() {
@@ -145,6 +104,70 @@ final class CameraViewController: UIViewController {
         return .portrait
     }
 }
+
+// MARK: - configure func
+
+private extension CameraViewController {
+    func configureSession() {
+        captureSession = AVCaptureSession()
+
+        configureVideoOutput()
+        configureMetaDataOutput()
+        configurePreviewLayer()
+        
+        captureSession.startRunning()
+    }
+    
+    /// 1. 入力デバイスの設定（背面カメラ）
+    func configureVideoOutput() {
+        func getVideoInput() -> AVCaptureDeviceInput? {
+            // 1. 入力デバイスの設定（背面カメラ）
+            guard let videoCaptureDevice = AVCaptureDevice.default(for: .video) else { return nil }
+            let videoInput: AVCaptureDeviceInput
+            
+            do {
+                return try AVCaptureDeviceInput(device: videoCaptureDevice)
+            } catch {
+                print("カメラの入力デバイス設定に失敗しました: \(error)")
+                return nil
+            }
+        }
+        
+        guard let videoInput = getVideoInput() else { return }
+        if (captureSession.canAddInput(videoInput)) {
+            captureSession.addInput(videoInput)
+        } else {
+            failed()
+            return
+        }
+    }
+    
+    /// 2. 出力の設定（メタデータ出力）
+    func configureMetaDataOutput() {
+        let metadataOutput = AVCaptureMetadataOutput()
+
+        if (captureSession.canAddOutput(metadataOutput)) {
+            captureSession.addOutput(metadataOutput)
+
+            metadataOutput.setMetadataObjectsDelegate(self, queue: DispatchQueue.main)
+            // QRコードのみを検出対象に設定
+            metadataOutput.metadataObjectTypes = [.qr]
+        } else {
+            failed()
+            return
+        }
+    }
+    
+    /// 3. プレビューレイヤーの設定
+    func configurePreviewLayer() {
+        previewLayer = AVCaptureVideoPreviewLayer(session: captureSession)
+        previewLayer.frame = view.layer.bounds
+        previewLayer.videoGravity = .resizeAspectFill
+        view.layer.addSublayer(previewLayer)
+    }
+}
+
+// MARK: - AVCaptureMetadataOutputObjectsDelegate
 
 extension CameraViewController: AVCaptureMetadataOutputObjectsDelegate {
     func metadataOutput(_ output: AVCaptureMetadataOutput, didOutput metadataObjects: [AVMetadataObject], from connection: AVCaptureConnection) {
